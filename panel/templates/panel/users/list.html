@@ -1,0 +1,41 @@
+{% extends 'panel/base.html' %}
+{% load panel_extras %}
+
+{% block content %}
+<div class="space-y-5">
+    <form method="get" class="flex max-w-xl gap-2">
+        <input type="search" name="q" value="{{ query }}" placeholder="جستجوی نام، موبایل یا شناسه بله" class="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+        <button type="submit" class="inline-flex items-center gap-1 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+            <i data-lucide="search" class="h-4 w-4"></i>
+            جستجو
+        </button>
+    </form>
+
+    <div class="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                    <th class="px-4 py-3 text-right font-semibold">نام</th>
+                    <th class="px-4 py-3 text-right font-semibold">موبایل</th>
+                    <th class="px-4 py-3 text-right font-semibold">شناسه بله</th>
+                    <th class="px-4 py-3 text-right font-semibold">تاریخ عضویت</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for bot_user in users %}
+                    <tr>
+                        <td class="px-4 py-3 font-medium">{{ bot_user }}</td>
+                        <td class="px-4 py-3" dir="ltr">{{ bot_user.phone|default:'-' }}</td>
+                        <td class="px-4 py-3" dir="ltr">{{ bot_user.bale_user_id }}</td>
+                        <td class="px-4 py-3" dir="ltr">{{ bot_user.created_at|jalali_datetime }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-4 py-10 text-center text-slate-500">کاربری برای نمایش وجود ندارد.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

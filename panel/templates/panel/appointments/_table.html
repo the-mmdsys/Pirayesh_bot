@@ -1,0 +1,49 @@
+{% load panel_extras %}
+
+<div class="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+    <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50 text-slate-600">
+            <tr>
+                <th class="px-4 py-3 text-right font-semibold">مشتری</th>
+                <th class="px-4 py-3 text-right font-semibold">موبایل</th>
+                <th class="px-4 py-3 text-right font-semibold">آرایشگر</th>
+                <th class="px-4 py-3 text-right font-semibold">تاریخ شمسی</th>
+                <th class="px-4 py-3 text-right font-semibold">ساعت</th>
+                <th class="px-4 py-3 text-right font-semibold">وضعیت</th>
+                <th class="px-4 py-3 text-right font-semibold">عملیات</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for appointment in appointments %}
+                <tr class="align-middle">
+                    <td class="px-4 py-3 font-medium text-slate-900">{{ appointment.user }}</td>
+                    <td class="px-4 py-3 text-slate-600" dir="ltr">{{ appointment.user.phone|default:'-' }}</td>
+                    <td class="px-4 py-3">{{ appointment.barber }}</td>
+                    <td class="px-4 py-3" dir="ltr">{{ appointment.date|jalali_date }}</td>
+                    <td class="px-4 py-3" dir="ltr">{{ appointment.start_time|time:'H:i' }}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 {{ appointment.status|status_badge_class }}">{{ appointment.get_status_display }}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-wrap gap-2">
+                            <a href="{% url 'panel:appointment_edit' appointment.pk %}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100">
+                                <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                ویرایش
+                            </a>
+                            {% if appointment.status == 'booked' %}
+                                <a href="{% url 'panel:appointment_cancel' appointment.pk %}" class="inline-flex items-center gap-1 rounded-md border border-rose-200 px-3 py-2 text-xs text-rose-700 hover:bg-rose-50">
+                                    <i data-lucide="x" class="h-3.5 w-3.5"></i>
+                                    لغو
+                                </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7" class="px-4 py-10 text-center text-slate-500">نوبتی برای نمایش وجود ندارد.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

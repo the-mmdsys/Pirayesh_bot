@@ -1,0 +1,91 @@
+{% extends 'panel/base.html' %}
+{% load panel_extras %}
+
+{% block content %}
+<div class="space-y-6">
+    <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {% for stat in stats %}
+            <div class="rounded-md border border-slate-200 border-r-4 {{ stat.accent }} bg-white p-4 shadow-sm">
+                <p class="text-sm text-slate-500">{{ stat.label }}</p>
+                <p class="mt-2 text-3xl font-bold text-slate-950">{{ stat.value }}</p>
+            </div>
+        {% endfor %}
+    </section>
+
+    <section class="grid gap-6 xl:grid-cols-2">
+        <div class="rounded-md border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <h2 class="text-base font-bold">نوبت‌های امروز</h2>
+                <a href="{% url 'panel:today_appointments' %}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                    <i data-lucide="calendar-days" class="h-4 w-4"></i>
+                    مشاهده
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-slate-600">
+                        <tr>
+                            <th class="px-4 py-3 text-right font-semibold">مشتری</th>
+                            <th class="px-4 py-3 text-right font-semibold">آرایشگر</th>
+                            <th class="px-4 py-3 text-right font-semibold">ساعت</th>
+                            <th class="px-4 py-3 text-right font-semibold">وضعیت</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for appointment in today_appointments %}
+                            <tr>
+                                <td class="px-4 py-3">{{ appointment.user }}</td>
+                                <td class="px-4 py-3">{{ appointment.barber }}</td>
+                                <td class="px-4 py-3" dir="ltr">{{ appointment.start_time|time:'H:i' }}</td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-flex rounded-md px-2 py-1 text-xs font-semibold ring-1 {{ appointment.status|status_badge_class }}">{{ appointment.get_status_display }}</span>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="4" class="px-4 py-8 text-center text-slate-500">برای امروز نوبتی ثبت نشده است.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-md border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <h2 class="text-base font-bold">نوبت‌های نزدیک</h2>
+                <a href="{% url 'panel:appointment_create' %}" class="inline-flex items-center gap-1 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+                    <i data-lucide="plus" class="h-4 w-4"></i>
+                    ثبت دستی
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-slate-600">
+                        <tr>
+                            <th class="px-4 py-3 text-right font-semibold">تاریخ</th>
+                            <th class="px-4 py-3 text-right font-semibold">مشتری</th>
+                            <th class="px-4 py-3 text-right font-semibold">آرایشگر</th>
+                            <th class="px-4 py-3 text-right font-semibold">ساعت</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for appointment in upcoming_appointments %}
+                            <tr>
+                                <td class="px-4 py-3" dir="ltr">{{ appointment.date|jalali_date }}</td>
+                                <td class="px-4 py-3">{{ appointment.user }}</td>
+                                <td class="px-4 py-3">{{ appointment.barber }}</td>
+                                <td class="px-4 py-3" dir="ltr">{{ appointment.start_time|time:'H:i' }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="4" class="px-4 py-8 text-center text-slate-500">نوبت آینده‌ای وجود ندارد.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends 'panel/base.html' %}
+
+{% block content %}
+<div class="space-y-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <form method="get" class="flex min-w-0 gap-2">
+            <input type="search" name="q" value="{{ query }}" placeholder="جستجوی نام آرایشگر" class="min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            <button type="submit" class="inline-flex items-center gap-1 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+                <i data-lucide="search" class="h-4 w-4"></i>
+                جستجو
+            </button>
+        </form>
+        <a href="{% url 'panel:barber_create' %}" class="inline-flex items-center justify-center gap-1 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            افزودن آرایشگر
+        </a>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {% for barber in barbers %}
+            <article class="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="flex items-start gap-3">
+                    <div class="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100">
+                        {% if barber.image %}
+                            <img src="{{ barber.image.url }}" alt="{{ barber }}" class="h-full w-full object-cover">
+                        {% else %}
+                            <div class="flex h-full w-full items-center justify-center text-sm font-bold text-slate-500">{{ barber.first_name|first }}{{ barber.last_name|first }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <h2 class="font-bold text-slate-950">{{ barber }}</h2>
+                        <p class="mt-1 line-clamp-2 text-sm text-slate-500">{{ barber.description|default:'توضیحی ثبت نشده است.' }}</p>
+                    </div>
+                    <span class="rounded-md px-2 py-1 text-xs font-semibold {% if barber.is_active %}bg-teal-50 text-teal-800 ring-1 ring-teal-200{% else %}bg-slate-100 text-slate-600 ring-1 ring-slate-200{% endif %}">
+                        {% if barber.is_active %}فعال{% else %}غیرفعال{% endif %}
+                    </span>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{% url 'panel:barber_edit' barber.pk %}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                        <i data-lucide="pencil" class="h-4 w-4"></i>
+                        ویرایش
+                    </a>
+                    <form method="post" action="{% url 'panel:barber_toggle' barber.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center gap-1 rounded-md border border-amber-200 px-3 py-2 text-sm text-amber-800 hover:bg-amber-50">
+                            <i data-lucide="power" class="h-4 w-4"></i>
+                            تغییر وضعیت
+                        </button>
+                    </form>
+                </div>
+            </article>
+        {% empty %}
+            {% include 'panel/includes/empty.html' with message='آرایشگری ثبت نشده است.' %}
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

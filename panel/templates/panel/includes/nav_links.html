@@ -1,0 +1,10 @@
+{% with current=request.resolver_match.url_name %}
+<a href="{% url 'panel:dashboard' %}" class="block rounded-md px-3 py-2 {% if current == 'dashboard' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">داشبورد</a>
+<a href="{% url 'panel:today_appointments' %}" class="block rounded-md px-3 py-2 {% if current == 'today_appointments' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">نوبت‌های امروز</a>
+<a href="{% url 'panel:appointments' %}" class="block rounded-md px-3 py-2 {% if current == 'appointments' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">همه نوبت‌ها</a>
+<a href="{% url 'panel:barbers' %}" class="block rounded-md px-3 py-2 {% if current == 'barbers' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">آرایشگرها</a>
+<a href="{% url 'panel:schedules' %}" class="block rounded-md px-3 py-2 {% if current == 'schedules' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">برنامه کاری</a>
+<a href="{% url 'panel:blocked_times' %}" class="block rounded-md px-3 py-2 {% if current == 'blocked_times' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">زمان‌های مسدودشده</a>
+<a href="{% url 'panel:users' %}" class="block rounded-md px-3 py-2 {% if current == 'users' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">کاربران</a>
+<a href="{% url 'panel:salon_settings' %}" class="block rounded-md px-3 py-2 {% if current == 'salon_settings' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">تنظیمات آرایشگاه</a>
+{% endwith %}

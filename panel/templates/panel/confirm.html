@@ -1,0 +1,18 @@
+{% extends 'panel/base.html' %}
+
+{% block content %}
+<form method="post" class="max-w-xl rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+    {% csrf_token %}
+    <p class="text-sm leading-7 text-slate-700">{{ message }}</p>
+    <div class="mt-6 flex flex-wrap gap-2">
+        <button type="submit" class="inline-flex items-center gap-1 rounded-md bg-rose-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-800">
+            <i data-lucide="check" class="h-4 w-4"></i>
+            تأیید
+        </button>
+        <a href="{% url cancel_url %}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-100">
+            <i data-lucide="x" class="h-4 w-4"></i>
+            انصراف
+        </a>
+    </div>
+</form>
+{% endblock %}

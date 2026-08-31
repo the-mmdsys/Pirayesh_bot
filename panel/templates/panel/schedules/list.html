@@ -1,0 +1,62 @@
+{% extends 'panel/base.html' %}
+
+{% block content %}
+<div class="space-y-5">
+    <div class="flex justify-end">
+        <a href="{% url 'panel:schedule_create' %}" class="inline-flex items-center gap-1 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            افزودن برنامه کاری
+        </a>
+    </div>
+
+    <div class="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                    <th class="px-4 py-3 text-right font-semibold">آرایشگر</th>
+                    <th class="px-4 py-3 text-right font-semibold">روز</th>
+                    <th class="px-4 py-3 text-right font-semibold">ساعت کاری</th>
+                    <th class="px-4 py-3 text-right font-semibold">مدت نوبت</th>
+                    <th class="px-4 py-3 text-right font-semibold">استراحت</th>
+                    <th class="px-4 py-3 text-right font-semibold">وضعیت</th>
+                    <th class="px-4 py-3 text-right font-semibold">عملیات</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for schedule in schedules %}
+                    <tr>
+                        <td class="px-4 py-3 font-medium">{{ schedule.barber }}</td>
+                        <td class="px-4 py-3">{{ schedule.get_day_of_week_display }}</td>
+                        <td class="px-4 py-3" dir="ltr">{{ schedule.start_time|time:'H:i' }} - {{ schedule.end_time|time:'H:i' }}</td>
+                        <td class="px-4 py-3">{{ schedule.slot_duration_minutes }} دقیقه</td>
+                        <td class="px-4 py-3" dir="ltr">
+                            {% if schedule.break_start_time and schedule.break_end_time %}
+                                {{ schedule.break_start_time|time:'H:i' }} - {{ schedule.break_end_time|time:'H:i' }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">{% if schedule.is_active %}فعال{% else %}غیرفعال{% endif %}</td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap gap-2">
+                                <a href="{% url 'panel:schedule_edit' schedule.pk %}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100">
+                                    <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                    ویرایش
+                                </a>
+                                <a href="{% url 'panel:schedule_delete' schedule.pk %}" class="inline-flex items-center gap-1 rounded-md border border-rose-200 px-3 py-2 text-xs text-rose-700 hover:bg-rose-50">
+                                    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                                    حذف
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-4 py-10 text-center text-slate-500">برنامه کاری ثبت نشده است.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

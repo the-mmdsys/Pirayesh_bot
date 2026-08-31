@@ -1,0 +1,59 @@
+{% extends 'panel/base.html' %}
+{% load panel_extras %}
+
+{% block content %}
+<div class="space-y-5">
+    <div class="flex justify-end">
+        <a href="{% url 'panel:blocked_time_create' %}" class="inline-flex items-center gap-1 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            افزودن زمان مسدود
+        </a>
+    </div>
+
+    <div class="overflow-x-auto rounded-md border border-slate-200 bg-white shadow-sm">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                    <th class="px-4 py-3 text-right font-semibold">آرایشگر</th>
+                    <th class="px-4 py-3 text-right font-semibold">تاریخ شمسی</th>
+                    <th class="px-4 py-3 text-right font-semibold">بازه</th>
+                    <th class="px-4 py-3 text-right font-semibold">دلیل</th>
+                    <th class="px-4 py-3 text-right font-semibold">عملیات</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for blocked_time in blocked_times %}
+                    <tr>
+                        <td class="px-4 py-3">{{ blocked_time.barber|default:'کل آرایشگاه' }}</td>
+                        <td class="px-4 py-3" dir="ltr">{{ blocked_time.date|jalali_date }}</td>
+                        <td class="px-4 py-3" dir="ltr">
+                            {% if blocked_time.is_full_day %}
+                                کل روز
+                            {% else %}
+                                {{ blocked_time.start_time|time:'H:i' }} - {{ blocked_time.end_time|time:'H:i' }}
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">{{ blocked_time.reason|default:'-' }}</td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap gap-2">
+                                <a href="{% url 'panel:blocked_time_edit' blocked_time.pk %}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100">
+                                    <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                                    ویرایش
+                                </a>
+                                <a href="{% url 'panel:blocked_time_delete' blocked_time.pk %}" class="inline-flex items-center gap-1 rounded-md border border-rose-200 px-3 py-2 text-xs text-rose-700 hover:bg-rose-50">
+                                    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                                    حذف
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-10 text-center text-slate-500">زمان مسدودی ثبت نشده است.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

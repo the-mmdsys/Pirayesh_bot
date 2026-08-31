@@ -1,0 +1,33 @@
+{% extends 'panel/base.html' %}
+
+{% block content %}
+<div class="space-y-5">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <form method="get" class="grid gap-2 sm:grid-cols-[minmax(180px,1fr)_180px_180px_auto]">
+            <input type="search" name="q" value="{{ filters.q }}" placeholder="جستجوی مشتری، موبایل یا آرایشگر" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+            <select name="status" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+                <option value="">همه وضعیت‌ها</option>
+                {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select name="barber" class="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
+                <option value="">همه آرایشگرها</option>
+                {% for barber in barbers %}
+                    <option value="{{ barber.id }}" {% if filters.barber == barber.id|stringformat:'s' %}selected{% endif %}>{{ barber }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="inline-flex items-center justify-center gap-1 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">
+                <i data-lucide="search" class="h-4 w-4"></i>
+                جستجو
+            </button>
+        </form>
+        <a href="{% url 'panel:appointment_create' %}" class="inline-flex items-center justify-center gap-1 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            ثبت نوبت دستی
+        </a>
+    </div>
+
+    {% include 'panel/appointments/_table.html' %}
+</div>
+{% endblock %}

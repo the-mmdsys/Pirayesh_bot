@@ -1,0 +1,17 @@
+{% for field in form %}
+    <div class="{% if field.field.widget.input_type == 'checkbox' %}flex items-center gap-2{% else %}space-y-1{% endif %}">
+        {% if field.field.widget.input_type == 'checkbox' %}
+            {{ field }}
+            <label for="{{ field.id_for_label }}" class="text-sm font-medium text-slate-700">{{ field.label }}</label>
+        {% else %}
+            <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}</label>
+            {{ field }}
+        {% endif %}
+        {% if field.help_text %}
+            <p class="text-xs text-slate-500">{{ field.help_text }}</p>
+        {% endif %}
+        {% for error in field.errors %}
+            <p class="text-xs text-rose-700">{{ error }}</p>
+        {% endfor %}
+    </div>
+{% endfor %}

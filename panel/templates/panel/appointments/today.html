@@ -1,0 +1,13 @@
+{% extends 'panel/base.html' %}
+
+{% block content %}
+<div class="space-y-5">
+    <div class="flex justify-end">
+        <a href="{% url 'panel:appointment_create' %}" class="inline-flex items-center gap-1 rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            ثبت نوبت دستی
+        </a>
+    </div>
+    {% include 'panel/appointments/_table.html' %}
+</div>
+{% endblock %}

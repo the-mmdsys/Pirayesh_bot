@@ -76,6 +76,9 @@ CSRF_TRUSTED_ORIGINS = env_list('DJANGO_CSRF_TRUSTED_ORIGINS')
 # Application definition
 
 INSTALLED_APPS = [
+    # Keep this before django.contrib.staticfiles so its development
+    # runserver command can start Bale polling alongside Django.
+    'bale_bot.apps.BaleBotConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -101,7 +104,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -119,17 +122,23 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': required_env('DB_NAME'),
+#         'USER': required_env('DB_USER'),
+#         'PASSWORD': required_env('DB_PASSWORD'),
+#         'HOST': required_env('DB_HOST'),
+#         'PORT': required_env('DB_PORT'),
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': required_env('DB_NAME'),
-        'USER': required_env('DB_USER'),
-        'PASSWORD': required_env('DB_PASSWORD'),
-        'HOST': required_env('DB_HOST'),
-        'PORT': required_env('DB_PORT'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

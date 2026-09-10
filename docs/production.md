@@ -4,7 +4,7 @@
 
 ## Development vs Production
 
-در Development راحتی مهم است: `DJANGO_DEBUG=True`، اجرای `runserver`، و Long Polling با `python bot.py`.
+در Development راحتی مهم است: `DJANGO_DEBUG=True` و اجرای `runserver` که Long Polling ربات را نیز خودکار راه‌اندازی می‌کند.
 
 در Production امنیت و پایداری مهم است: `DJANGO_DEBUG=False`، اجرای Django پشت یک application server و reverse proxy، HTTPS، logging، backup و webhook.
 
@@ -51,7 +51,7 @@ DJANGO_CSRF_TRUSTED_ORIGINS=https://example.com,https://www.example.com
 قبل از اجرای نسخه جدید:
 
 ```powershell
-.\.venv\Scripts\python.exe manage.py migrate
+.\venv\Scripts\python.exe manage.py migrate
 ```
 
 ## Static Files
@@ -61,7 +61,7 @@ Static یعنی فایل های ثابت پروژه، مثل CSS و JavaScript �
 در Production باید collectstatic اجرا شود:
 
 ```powershell
-.\.venv\Scripts\python.exe manage.py collectstatic
+.\venv\Scripts\python.exe manage.py collectstatic
 ```
 
 خروجی داخل `DJANGO_STATIC_ROOT` قرار می گیرد. سرو کردن این فایل ها باید توسط reverse proxy یا وب سرور Production انجام شود.
@@ -102,11 +102,13 @@ Logها در مسیر `DJANGO_LOG_DIR` ذخیره می شوند. مقدار پی
 
 ## Bale Long Polling
 
-Development همچنان با Long Polling کار می کند:
+در Development، فرمان `runserver` پنل و Long Polling را با هم اجرا می‌کند:
 
 ```powershell
-.\.venv\Scripts\python.exe bot.py
+.\venv\Scripts\python.exe manage.py runserver
 ```
+
+`bot.py` برای اجرای مستقل ربات باقی مانده و نباید هم‌زمان با `runserver` اجرا شود.
 
 مسیر فعلی:
 

@@ -3,6 +3,7 @@
 
 {% block content %}
 <div class="space-y-6">
+    <section class="dashboard-welcome"><div><span class="eyebrow">به پاییزان خوش آمدید</span><h2>امروز را با خیال راحت مدیریت کنید.</h2><p>یک نگاه به نوبت‌ها بیندازید و برای استقبال از مشتری‌ها آماده شوید.</p><a href="{% url 'panel:appointment_create' %}" class="welcome-action">ثبت نوبت جدید <span aria-hidden="true">←</span></a></div><div class="welcome-emblem" aria-hidden="true">✂</div></section>
     <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {% for stat in stats %}
             <div class="rounded-md border border-slate-200 border-r-4 {{ stat.accent }} bg-white p-4 shadow-sm">

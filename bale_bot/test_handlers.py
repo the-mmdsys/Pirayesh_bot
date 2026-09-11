@@ -11,7 +11,7 @@ django.setup()
 
 from appointments.models import Appointment, Barber, BarberWorkingSchedule, BotConversationState, BotUser, SalonSettings
 from appointments.utils.date_utils import gregorian_to_jalali
-from bale_bot.handlers import handle_message
+from bale_bot.handlers import handle_callback_query, handle_message
 from bale_bot.menu import (
     MAIN_MENU_CONTACT,
     MAIN_MENU_KEYBOARD,
@@ -26,13 +26,21 @@ from bale_bot.my_appointments_flow import (
     CANCEL_APPOINTMENT_YES,
     format_cancel_button,
 )
-from bale_bot.profile_flow import PROFILE_EDIT_TEXT
+from bale_bot.profile_flow import FULL_NAME_PROMPT, INVALID_PHONE_TEXT, PROFILE_EDIT_TEXT
 from bale_bot.reservation_flow import RESERVATION_CONFIRM_TEXT, format_barber_label
 
 
 class FakeClient:
     def __init__(self):
         self.calls = []
+
+    def send_photo(self, chat_id, photo, caption='', reply_markup=None):
+        self.calls.append({'method': 'send_photo', 'chat_id': chat_id, 'text': caption, 'reply_markup': reply_markup,
+                           'photo_source': str(getattr(photo, 'name', photo))})
+        return self.calls[-1]
+
+    def answer_callback_query(self, callback_query_id, text=''):
+        self.calls.append({'method': 'answer_callback_query', 'id': callback_query_id, 'text': text})
 
     def send_message(self, chat_id, text, reply_markup=None):
         self.calls.append(
@@ -65,6 +73,11 @@ def make_message(text, user_id=1001, chat_id=2002):
         'chat': {'id': chat_id},
         'text': text,
     }
+
+
+def make_callback(data, user_id=1001, chat_id=2002):
+    return {'id': '200-test-callback', 'from': {'id': user_id}, 'data': data,
+            'message': {'chat': {'id': chat_id}, 'from': {'id': 9999}}}
 
 
 def next_weekday(weekday):
@@ -107,17 +120,17 @@ class ProfileHandlerTests(TestCase):
         result = handle_message(make_message(MAIN_MENU_PROFILE), self.client)
         user = BotUser.objects.get(bale_user_id=1001)
 
-        self.assertEqual(result['text'], 'لطفا نام خود را وارد کنید.')
-        self.assertEqual(user.conversation_state.state, BotConversationState.State.WAITING_FOR_FIRST_NAME)
+        self.assertEqual(result['text'], FULL_NAME_PROMPT)
+        self.assertEqual(user.conversation_state.state, BotConversationState.State.WAITING_FOR_FULL_NAME)
 
     def test_profile_completion_saves_user_and_resets_state(self):
         handle_message(make_message(MAIN_MENU_PROFILE), self.client)
-        handle_message(make_message('علی'), self.client)
-        handle_message(make_message('احمدی'), self.client)
+        handle_message(make_message('علی احمدی'), self.client)
         result = handle_message(make_message('09123456789'), self.client)
 
         user = BotUser.objects.get(bale_user_id=1001)
         self.assertEqual(user.first_name, 'علی')
+        self.assertEqual(user.full_name, 'علی احمدی')
         self.assertEqual(user.last_name, 'احمدی')
         self.assertEqual(user.phone, '09123456789')
         self.assertEqual(user.conversation_state.state, BotConversationState.State.IDLE)
@@ -127,13 +140,12 @@ class ProfileHandlerTests(TestCase):
 
     def test_invalid_phone_keeps_user_in_phone_step(self):
         handle_message(make_message(MAIN_MENU_PROFILE), self.client)
-        handle_message(make_message('علی'), self.client)
-        handle_message(make_message('احمدی'), self.client)
+        handle_message(make_message('علی احمدی'), self.client)
         result = handle_message(make_message('123'), self.client)
 
         user = BotUser.objects.get(bale_user_id=1001)
         self.assertEqual(user.conversation_state.state, BotConversationState.State.WAITING_FOR_PHONE)
-        self.assertEqual(result['text'], 'شماره موبایل معتبر نیست. لطفا شماره را دوباره وارد کنید.')
+        self.assertEqual(result['text'], INVALID_PHONE_TEXT)
 
     def test_complete_profile_is_displayed_with_edit_option(self):
         BotUser.objects.create(
@@ -161,8 +173,8 @@ class ProfileHandlerTests(TestCase):
         result = handle_message(make_message(PROFILE_EDIT_TEXT), self.client)
         user = BotUser.objects.get(bale_user_id=1001)
 
-        self.assertEqual(result['text'], 'لطفا نام خود را وارد کنید.')
-        self.assertEqual(user.conversation_state.state, BotConversationState.State.WAITING_FOR_FIRST_NAME)
+        self.assertEqual(result['text'], FULL_NAME_PROMPT)
+        self.assertEqual(user.conversation_state.state, BotConversationState.State.WAITING_FOR_FULL_NAME)
 
 
 class ReservationHandlerTests(TestCase):
@@ -187,13 +199,14 @@ class ReservationHandlerTests(TestCase):
     def test_reservation_flow_creates_booked_appointment(self):
         handle_message(make_message(MAIN_MENU_RESERVE), self.client)
         handle_message(make_message(format_barber_label(self.barber)), self.client)
+        handle_callback_query(make_callback(f'book:{self.barber.pk}'), self.client)
         handle_message(make_message(gregorian_to_jalali(self.target_date)), self.client)
         summary = handle_message(make_message('09:00'), self.client)
         result = handle_message(make_message(RESERVATION_CONFIRM_TEXT), self.client)
 
         appointment = Appointment.objects.get(user=self.user, barber=self.barber)
         self.assertEqual(summary['method'], 'send_reply_keyboard')
-        self.assertIn('خلاصه رزرو:', summary['text'])
+        self.assertIn('خلاصه رزرو', summary['text'])
         self.assertIn(gregorian_to_jalali(self.target_date), summary['text'])
         self.assertEqual(appointment.status, Appointment.Status.BOOKED)
         self.assertEqual(appointment.start_time, time(9, 0))
@@ -204,6 +217,7 @@ class ReservationHandlerTests(TestCase):
         other_user = BotUser.objects.create(bale_user_id=1002, first_name='مینا')
         handle_message(make_message(MAIN_MENU_RESERVE), self.client)
         handle_message(make_message(format_barber_label(self.barber)), self.client)
+        handle_callback_query(make_callback(f'book:{self.barber.pk}'), self.client)
         handle_message(make_message(gregorian_to_jalali(self.target_date)), self.client)
         handle_message(make_message('09:00'), self.client)
         Appointment.objects.create(
@@ -257,7 +271,7 @@ class MyAppointmentsHandlerTests(TestCase):
         self.user.refresh_from_db()
 
         self.assertEqual(result['method'], 'send_reply_keyboard')
-        self.assertIn('آیا مطمئن هستید؟', result['text'])
+        self.assertIn('این نوبت لغو شود؟', result['text'])
         self.assertEqual(result['keyboard'][0][0]['text'], CANCEL_APPOINTMENT_YES)
         self.assertEqual(result['keyboard'][0][1]['text'], CANCEL_APPOINTMENT_NO)
         self.assertEqual(self.user.conversation_state.state, BotConversationState.State.WAITING_FOR_CANCEL_CONFIRMATION)
@@ -291,9 +305,9 @@ class ContactInfoHandlerTests(TestCase):
     def test_contact_info_without_settings_shows_not_configured_message(self):
         result = handle_message(make_message(MAIN_MENU_CONTACT), self.client)
 
-        self.assertEqual(result['method'], 'send_reply_keyboard')
-        self.assertEqual(result['text'], 'اطلاعات ارتباط با آرایشگاه هنوز در پنل مدیریت ثبت نشده است.')
-        self.assertEqual(result['keyboard'], MAIN_MENU_KEYBOARD)
+        self.assertEqual(result['method'], 'send_photo')
+        self.assertIn('پیرایش تخصصی پاییزان', result['text'])
+        self.assertEqual(result['reply_markup']['keyboard'], MAIN_MENU_KEYBOARD)
 
     def test_contact_info_is_read_from_salon_settings(self):
         SalonSettings.objects.create(
@@ -306,9 +320,9 @@ class ContactInfoHandlerTests(TestCase):
 
         result = handle_message(make_message(MAIN_MENU_CONTACT), self.client)
 
-        self.assertEqual(result['method'], 'send_reply_keyboard')
-        self.assertIn('نام آرایشگاه: آرایشگاه تست', result['text'])
+        self.assertEqual(result['method'], 'send_photo')
+        self.assertIn('آرایشگاه تست', result['text'])
         self.assertIn('شماره تماس: 02112345678', result['text'])
         self.assertIn('آدرس: تهران، خیابان تست', result['text'])
         self.assertIn('ساعات کاری: شنبه تا چهارشنبه ۹ تا ۱۸', result['text'])
-        self.assertIn('لوکیشن: https://example.com/location', result['text'])
+        self.assertEqual(result['reply_markup']['inline_keyboard'][0][0]['url'], 'https://example.com/location')

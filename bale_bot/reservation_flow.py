@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 
 from django.core.exceptions import ValidationError
@@ -11,10 +10,15 @@ from appointments.services.availability import (
     get_slot_end_time,
     is_slot_available,
 )
-from appointments.utils.date_utils import gregorian_to_jalali, jalali_to_gregorian
+from appointments.utils.date_utils import gregorian_to_jalali, jalali_to_gregorian, normalize_date_digits
 from appointments.utils.time_utils import is_appointment_time_in_past
 from bale_bot.menu import MAIN_MENU_KEYBOARD
-from bale_bot.profile_flow import is_profile_complete, is_valid_phone, normalize_phone
+from bale_bot.barber_flow import show_barber_profile
+from bale_bot.profile_flow import (
+    FULL_NAME_PROMPT, INVALID_PHONE_TEXT, clean_full_name, is_profile_complete,
+    is_valid_phone, normalize_phone, save_full_name_and_ask_phone, save_user_identity,
+)
+from bale_bot.utils import positive_id, selection_id
 
 
 RESERVATION_CANCEL_TEXT = '❌ انصراف'
@@ -30,7 +34,7 @@ def start_reservation(client, chat_id, user):
     barbers = list(Barber.objects.filter(is_active=True).order_by('first_name', 'last_name'))
     if not barbers:
         get_user_state(user).reset()
-        return client.send_message(chat_id=chat_id, text='فعلا آرایشگر فعالی برای رزرو وجود ندارد.')
+        return client.send_message(chat_id=chat_id, text='🌿 فعلاً آرایشگری برای رزرو آماده نیست. کمی بعد دوباره سر بزن یا از «ارتباط با ما» با سالن هماهنگ کن.')
 
     state = get_user_state(user)
     state.state = BotConversationState.State.WAITING_FOR_BARBER
@@ -39,7 +43,7 @@ def start_reservation(client, chat_id, user):
 
     return client.send_reply_keyboard(
         chat_id=chat_id,
-        text='لطفا آرایشگر مورد نظر خود را انتخاب کنید.',
+        text='✂️ دوست داری مهمان کدام آرایشگر باشی؟\nروی نام هر کدام بزن تا با تخصص و نمونه‌کارهایش آشنا شوی.',
         keyboard=build_barber_keyboard(barbers),
         resize_keyboard=True,
     )
@@ -52,13 +56,21 @@ def handle_reservation_state(client, chat_id, user, text):
         state.reset()
         return client.send_reply_keyboard(
             chat_id=chat_id,
-            text='رزرو نوبت لغو شد.',
+            text='🌿 از این رزرو منصرف شدی و نوبتی ثبت نشد. هر وقت آماده بودی، دوباره شروع می‌کنیم.',
             keyboard=MAIN_MENU_KEYBOARD,
             resize_keyboard=True,
         )
 
     if state.state == BotConversationState.State.WAITING_FOR_BARBER:
         return handle_barber_selection(client, chat_id, user, state, text)
+
+    if state.state == BotConversationState.State.WAITING_FOR_BARBER_PROFILE:
+        if parse_barber_id(text):
+            return handle_barber_selection(client, chat_id, user, state, text)
+        return client.send_message(chat_id, '📸 نمونه‌کارها و دکمه انتخاب روز و ساعت زیر عکس آرایشگرت هستند. برای ادامه روی آن‌ها بزن.')
+
+    if state.state == BotConversationState.State.WAITING_FOR_FULL_NAME:
+        return save_full_name_and_ask_phone(client, chat_id, state, text, key='profile_full_name')
 
     if state.state == BotConversationState.State.WAITING_FOR_DATE:
         return handle_date_selection(client, chat_id, user, state, text)
@@ -78,23 +90,23 @@ def handle_reservation_state(client, chat_id, user, text):
     if state.state == BotConversationState.State.WAITING_FOR_CONFIRMATION:
         return handle_confirmation(client, chat_id, user, state, text)
 
-    return client.send_message(chat_id=chat_id, text='مرحله رزرو مشخص نیست. لطفا /start را بفرستید.')
+    return client.send_message(chat_id=chat_id, text='🌿 بیایید رزرو را از نو شروع کنیم؛ /start را بفرست تا راهنمایی‌ات کنم.')
 
 
 def handle_barber_selection(client, chat_id, user, state, text):
     barber_id = parse_barber_id(text)
     barber = Barber.objects.filter(id=barber_id, is_active=True).first()
     if barber is None:
-        return client.send_message(chat_id=chat_id, text='لطفا یکی از آرایشگرهای نمایش داده شده را انتخاب کنید.')
+        return client.send_message(chat_id=chat_id, text='✂️ برای دیدن پروفایل، روی نام یکی از آرایشگرهای همین فهرست بزن.')
 
     state.data = {
         **state.data,
         'barber_id': barber.id,
         'barber_name': str(barber),
     }
-    state.state = BotConversationState.State.WAITING_FOR_DATE
+    state.state = BotConversationState.State.WAITING_FOR_BARBER_PROFILE
     state.save(update_fields=['state', 'data', 'updated_at'])
-    return send_date_selection(client, chat_id, user, barber)
+    return show_barber_profile(client, chat_id, barber)
 
 
 def handle_date_selection(client, chat_id, user, state, text):
@@ -102,7 +114,7 @@ def handle_date_selection(client, chat_id, user, state, text):
     if selected_date is None:
         return client.send_message(
             chat_id=chat_id,
-            text='لطفا تاریخ را با فرمت شمسی 1405/06/08 و از دکمه‌های نمایش داده شده انتخاب کنید.',
+            text='📅 روز دلخواهت را از دکمه‌های پایین انتخاب کن. اگر تایپ می‌کنی، تاریخ شمسی را مثل ۱۴۰۵/۰۶/۰۸ بنویس.',
         )
 
     barber = get_selected_barber(state)
@@ -111,7 +123,7 @@ def handle_date_selection(client, chat_id, user, state, text):
 
     available_dates = get_available_dates(barber)
     if selected_date not in available_dates:
-        return client.send_message(chat_id=chat_id, text='این روز قابل رزرو نیست. لطفا یک روز دیگر انتخاب کنید.')
+        return client.send_message(chat_id=chat_id, text='📅 این روز قابل رزرو نیست. یکی از روزهای آزاد فهرست را انتخاب کن تا ساعت‌ها را ببینیم.')
 
     state.data = {**state.data, 'date': selected_date.isoformat()}
     state.state = BotConversationState.State.WAITING_FOR_TIME
@@ -122,7 +134,7 @@ def handle_date_selection(client, chat_id, user, state, text):
 def handle_time_selection(client, chat_id, user, state, text):
     selected_time = parse_time(text)
     if selected_time is None:
-        return client.send_message(chat_id=chat_id, text='لطفا ساعت را از دکمه‌های نمایش داده شده انتخاب کنید.')
+        return client.send_message(chat_id=chat_id, text='🕘 کدام ساعت برایت راحت‌تر است؟ روی یکی از ساعت‌های پایین بزن.')
 
     barber = get_selected_barber(state)
     selected_date = get_selected_date(state)
@@ -141,24 +153,25 @@ def handle_time_selection(client, chat_id, user, state, text):
                 chat_id,
                 user,
                 barber,
-                message='برای این روز ساعت آزادی باقی نمانده است. لطفا روز دیگری انتخاب کنید.',
+                message='🌿 ساعت‌های این روز پر شده‌اند. یک روز دیگر انتخاب کن تا زمان مناسب‌تری پیدا کنیم.',
             )
         return send_time_selection(
             client,
             chat_id,
             barber,
             selected_date,
-            message='این ساعت دیگر آزاد نیست. لطفا ساعت دیگری انتخاب کنید.',
+            message='🌿 این ساعت دیگر آزاد نیست. از ساعت‌های تازه، زمان دیگری انتخاب کن.',
         )
 
     state.data = {**state.data, 'start_time': selected_time.strftime('%H:%M')}
 
     if not is_profile_complete(user):
-        state.state = BotConversationState.State.WAITING_FOR_FIRST_NAME
+        state.state = BotConversationState.State.WAITING_FOR_FULL_NAME
         state.save(update_fields=['state', 'data', 'updated_at'])
-        return client.send_message(
+        return client.send_reply_keyboard(
             chat_id=chat_id,
-            text='برای تکمیل رزرو، ابتدا اطلاعات پروفایل شما لازم است. لطفا نام خود را وارد کنید.',
+            text='🌿 فقط دو قدم تا تکمیل مشخصاتت مانده.\n' + FULL_NAME_PROMPT,
+            keyboard=[[{'text': RESERVATION_CANCEL_TEXT}]],
         )
 
     state.state = BotConversationState.State.WAITING_FOR_CONFIRMATION
@@ -169,12 +182,14 @@ def handle_time_selection(client, chat_id, user, state, text):
 def save_reservation_first_name(client, chat_id, state, text):
     cleaned_text = text.strip()
     if not cleaned_text:
-        return client.send_message(chat_id=chat_id, text='نام نمی‌تواند خالی باشد. لطفا نام خود را وارد کنید.')
+        return client.send_message(chat_id=chat_id, text='🌿 نامت را ننوشتی؛ لطفاً آن را برایم بفرست.')
+    if len(cleaned_text) > 100:
+        return client.send_message(chat_id=chat_id, text='🌿 این نام کمی طولانی است؛ لطفاً آن را در حداکثر ۱۰۰ نویسه بنویس.')
 
     state.data = {**state.data, 'profile_first_name': cleaned_text}
     state.state = BotConversationState.State.WAITING_FOR_LAST_NAME
     state.save(update_fields=['state', 'data', 'updated_at'])
-    return client.send_message(chat_id=chat_id, text='لطفا نام خانوادگی خود را وارد کنید.')
+    return client.send_message(chat_id=chat_id, text='🌿 ممنون! حالا نام خانوادگی‌ات را بنویس.')
 
 
 def save_reservation_last_name(client, chat_id, state, text):
@@ -182,13 +197,15 @@ def save_reservation_last_name(client, chat_id, state, text):
     if not cleaned_text:
         return client.send_message(
             chat_id=chat_id,
-            text='نام خانوادگی نمی‌تواند خالی باشد. لطفا نام خانوادگی خود را وارد کنید.',
+            text='🌿 نام خانوادگی‌ات جا افتاده؛ لطفاً آن را هم بنویس.',
         )
+    if len(cleaned_text) > 100:
+        return client.send_message(chat_id=chat_id, text='🌿 نام خانوادگی را در حداکثر ۱۰۰ نویسه بنویس تا ذخیره شود.')
 
     state.data = {**state.data, 'profile_last_name': cleaned_text}
     state.state = BotConversationState.State.WAITING_FOR_PHONE
     state.save(update_fields=['state', 'data', 'updated_at'])
-    return client.send_message(chat_id=chat_id, text='لطفا شماره موبایل خود را وارد کنید.')
+    return client.send_message(chat_id=chat_id, text='📱 فقط شماره موبایلت مانده؛ آن را مثل ۰۹۱۲۳۴۵۶۷۸۹ بنویس.')
 
 
 def save_reservation_phone_and_show_summary(client, chat_id, user, state, text):
@@ -196,18 +213,20 @@ def save_reservation_phone_and_show_summary(client, chat_id, user, state, text):
     if not is_valid_phone(phone):
         return client.send_message(
             chat_id=chat_id,
-            text='شماره موبایل معتبر نیست. لطفا شماره را دوباره وارد کنید.',
+            text=INVALID_PHONE_TEXT,
         )
 
-    user.first_name = state.data.get('profile_first_name', '').strip()
-    user.last_name = state.data.get('profile_last_name', '').strip()
-    user.phone = phone
-    user.save(update_fields=['first_name', 'last_name', 'phone', 'updated_at'])
+    full_name = state.data.get('profile_full_name') or f"{state.data.get('profile_first_name', '')} {state.data.get('profile_last_name', '')}".strip()
+    if not clean_full_name(full_name):
+        state.state = BotConversationState.State.WAITING_FOR_FULL_NAME
+        state.save(update_fields=['state', 'updated_at'])
+        return client.send_message(chat_id, FULL_NAME_PROMPT)
+    save_user_identity(user, full_name, phone)
 
     state.data = {
         key: value
         for key, value in state.data.items()
-        if key not in {'profile_first_name', 'profile_last_name'}
+        if key not in {'profile_first_name', 'profile_last_name', 'profile_full_name'}
     }
     state.state = BotConversationState.State.WAITING_FOR_CONFIRMATION
     state.save(update_fields=['state', 'data', 'updated_at'])
@@ -216,7 +235,7 @@ def save_reservation_phone_and_show_summary(client, chat_id, user, state, text):
 
 def handle_confirmation(client, chat_id, user, state, text):
     if text != RESERVATION_CONFIRM_TEXT:
-        return client.send_message(chat_id=chat_id, text='برای ثبت نهایی، لطفا تأیید رزرو را انتخاب کنید.')
+        return client.send_message(chat_id=chat_id, text='✨ یک قدم تا نهایی شدن نوبت مانده؛ روی «تأیید رزرو» بزن.')
 
     try:
         appointment = create_appointment_from_state(user, state)
@@ -234,7 +253,7 @@ def handle_confirmation(client, chat_id, user, state, text):
                     chat_id,
                     user,
                     barber,
-                    message='این ساعت در لحظه آخر رزرو شد و برای آن روز ساعت آزادی باقی نمانده است. لطفا روز دیگری انتخاب کنید.',
+                    message='🌿 این ساعت در لحظه آخر رزرو شد و ساعت‌های آن روز پر شدند. یک روز دیگر انتخاب کن تا دوباره زمان مناسب پیدا کنیم.',
                 )
 
             state.state = BotConversationState.State.WAITING_FOR_TIME
@@ -245,13 +264,13 @@ def handle_confirmation(client, chat_id, user, state, text):
                 chat_id,
                 barber,
                 selected_date,
-                message='این ساعت در لحظه آخر رزرو شد. لطفا ساعت دیگری انتخاب کنید.',
+                message='🌿 این ساعت در لحظه آخر رزرو شد. از فهرست تازه، ساعت دیگری انتخاب کن.',
             )
         return restart_reservation(client, chat_id, user)
 
     state.reset()
     text = (
-        'نوبت شما با موفقیت ثبت شد.\n'
+        '✅ نوبت شما با موفقیت ثبت شد. منتظر دیدارت هستیم!\n\n'
         f'شماره نوبت: {appointment.id}\n'
         f'آرایشگر: {appointment.barber}\n'
         f'تاریخ: {gregorian_to_jalali(appointment.date)}\n'
@@ -292,16 +311,16 @@ def send_reservation_summary(client, chat_id, user, state):
     selected_time = get_selected_time(state)
 
     if barber is None or selected_date is None or selected_time is None:
-        return client.send_message(chat_id=chat_id, text='اطلاعات رزرو کامل نیست. لطفا /start را بفرستید.')
+        return client.send_message(chat_id=chat_id, text='🌿 بخشی از اطلاعات رزرو جا افتاده؛ با /start دوباره شروع کنیم.')
 
     text = (
-        'خلاصه رزرو:\n'
+        '🧾 یک نگاه به خلاصه رزرو بینداز:\n\n'
         f'آرایشگر: {barber}\n'
         f'تاریخ: {gregorian_to_jalali(selected_date)}\n'
         f'ساعت: {selected_time.strftime("%H:%M")}\n'
-        f'نام: {user.first_name} {user.last_name}\n'
+        f'نام و نام خانوادگی: {user}\n'
         f'شماره موبایل: {user.phone}\n\n'
-        'آیا رزرو را تأیید می‌کنید؟'
+        'همه‌چیز درست است؟ با «تأیید رزرو» نوبتت نهایی می‌شود. ✨'
     )
     keyboard = [
         [{'text': RESERVATION_CONFIRM_TEXT}, {'text': RESERVATION_CANCEL_TEXT}],
@@ -309,13 +328,13 @@ def send_reservation_summary(client, chat_id, user, state):
     return client.send_reply_keyboard(chat_id=chat_id, text=text, keyboard=keyboard, resize_keyboard=True)
 
 
-def send_date_selection(client, chat_id, user, barber, message='لطفا روز مورد نظر را انتخاب کنید.'):
+def send_date_selection(client, chat_id, user, barber, message='📅 چه روزی منتظرت باشیم؟ یکی از روزهای آزاد پایین را انتخاب کن.'):
     dates = get_available_dates(barber)
     if not dates:
         get_user_state(user).reset()
         return client.send_reply_keyboard(
             chat_id=chat_id,
-            text='برای این آرایشگر روز قابل رزروی پیدا نشد.',
+            text='🌿 فعلاً روز آزادی برای این آرایشگر نداریم. می‌توانی آرایشگر دیگری انتخاب کنی یا از «ارتباط با ما» با سالن هماهنگ شوی.',
             keyboard=MAIN_MENU_KEYBOARD,
             resize_keyboard=True,
         )
@@ -328,10 +347,10 @@ def send_date_selection(client, chat_id, user, barber, message='لطفا روز 
     )
 
 
-def send_time_selection(client, chat_id, barber, selected_date, message='لطفا ساعت مورد نظر را انتخاب کنید.'):
+def send_time_selection(client, chat_id, barber, selected_date, message='🕘 حالا ساعت مناسب خودت را انتخاب کن؛ این زمان‌ها هنوز آزادند.'):
     slots = get_available_slots(barber, selected_date)
     if not slots:
-        return client.send_message(chat_id=chat_id, text='برای این روز ساعت آزادی باقی نمانده است. لطفا روز دیگری انتخاب کنید.')
+        return client.send_message(chat_id=chat_id, text='🌿 ساعت‌های این روز پر شده‌اند؛ یک روز دیگر را امتحان کن.')
 
     return client.send_reply_keyboard(
         chat_id=chat_id,
@@ -352,7 +371,7 @@ def get_user_state(user):
 
 
 def get_selected_barber(state):
-    barber_id = state.data.get('barber_id')
+    barber_id = positive_id(state.data.get('barber_id'))
     if not barber_id:
         return None
     return Barber.objects.filter(id=barber_id, is_active=True).first()
@@ -385,10 +404,7 @@ def format_barber_label(barber):
 
 
 def parse_barber_id(text):
-    match = re.search(r'#(\d+)\s*$', text or '')
-    if not match:
-        return None
-    return int(match.group(1))
+    return selection_id(text)
 
 
 def parse_jalali_date(text):
@@ -407,8 +423,8 @@ def parse_stored_date(text):
 
 def parse_time(text):
     try:
-        return datetime.strptime(text, '%H:%M').time()
-    except (TypeError, ValueError):
+        return datetime.strptime(normalize_date_digits(text.strip()), '%H:%M').time()
+    except (AttributeError, TypeError, ValueError):
         return None
 
 
@@ -417,6 +433,7 @@ def is_reservation_state(state):
         state.state
         in {
             BotConversationState.State.WAITING_FOR_BARBER,
+            BotConversationState.State.WAITING_FOR_BARBER_PROFILE,
             BotConversationState.State.WAITING_FOR_DATE,
             BotConversationState.State.WAITING_FOR_TIME,
             BotConversationState.State.WAITING_FOR_CONFIRMATION,

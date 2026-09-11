@@ -1,3 +1,5 @@
+import json
+import mimetypes
 import os
 from pathlib import Path
 
@@ -57,8 +59,31 @@ class BaleBotClient:
         }
         return self.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
+    def send_photo(self, chat_id, photo, caption='', reply_markup=None):
+        payload = {'chat_id': chat_id, 'caption': caption[:4096]}
+        if reply_markup:
+            payload['reply_markup'] = reply_markup
+        if hasattr(photo, 'read'):
+            if reply_markup:
+                payload['reply_markup'] = json.dumps(reply_markup, ensure_ascii=False)
+            name = Path(getattr(photo, 'name', 'photo.png')).name
+            return self._request('post', 'sendPhoto', data=payload, files={
+                'photo': (name, photo, mimetypes.guess_type(name)[0] or 'image/png'),
+            })
+        payload['photo'] = str(photo)
+        return self._request('post', 'sendPhoto', json=payload)
+
+    def answer_callback_query(self, callback_query_id, text=''):
+        # Older Bale clients do not support callback acknowledgements.
+        if str(callback_query_id).startswith('1'):
+            return None
+        return self._request('post', 'answerCallbackQuery', json={
+            'callback_query_id': callback_query_id, 'text': text[:200],
+        })
+
     def _request(self, method, endpoint, **kwargs):
         url = f'{self.base_url}/{endpoint}'
+        kwargs.setdefault('timeout', 30)
         try:
             response = getattr(self.session, method)(url, **kwargs)
             response.raise_for_status()
@@ -68,8 +93,10 @@ class BaleBotClient:
         except ValueError as error:
             raise BaleAPIError(f'Bale API returned invalid JSON for {endpoint}') from None
 
+        if not isinstance(data, dict):
+            raise BaleAPIError(f'Bale API returned an invalid response for {endpoint}')
         if not data.get('ok'):
-            description = data.get('description') or 'Unknown Bale API error'
+            description = str(data.get('description') or 'Unknown Bale API error').replace(self.token, '[REDACTED]')
             raise BaleAPIError(f'Bale API error in {endpoint}: {description}')
 
         return data.get('result')

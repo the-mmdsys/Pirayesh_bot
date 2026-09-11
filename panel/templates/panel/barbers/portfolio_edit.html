@@ -1,0 +1,8 @@
+{% extends 'panel/base.html' %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" novalidate class="surface max-w-2xl space-y-5">
+{% csrf_token %}{% if form.non_field_errors %}<div role="alert">{{ form.non_field_errors }}</div>{% endif %}
+{% include 'panel/includes/form_fields.html' %}
+<div class="flex gap-3"><button class="primary-button" type="submit">ذخیره تغییرات</button><a class="soft-button" href="{% url 'panel:barber_portfolio' barber.pk %}">بازگشت به گالری</a></div>
+</form>
+{% endblock %}

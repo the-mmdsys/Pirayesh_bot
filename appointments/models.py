@@ -1,14 +1,17 @@
+from datetime import datetime
+
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
-from appointments.utils.time_utils import is_appointment_time_in_past
+from appointments.utils.time_utils import appointment_end_datetime, is_appointment_time_in_past
 
 
 class BotUser(models.Model):
     bale_user_id = models.BigIntegerField(unique=True, db_index=True, verbose_name='شناسه کاربر بله')
+    full_name = models.CharField(max_length=200, blank=True, verbose_name='نام و نام خانوادگی')
     first_name = models.CharField(max_length=100, blank=True, verbose_name='نام')
     last_name = models.CharField(max_length=100, blank=True, verbose_name='نام خانوادگی')
     phone = models.CharField(max_length=20, blank=True, verbose_name='شماره موبایل')
@@ -21,13 +24,14 @@ class BotUser(models.Model):
         verbose_name_plural = 'کاربران ربات'
 
     def __str__(self):
-        full_name = f'{self.first_name} {self.last_name}'.strip()
-        return full_name or str(self.bale_user_id)
+        return self.full_name or f'{self.first_name} {self.last_name}'.strip() or str(self.bale_user_id)
 
 
 class BotConversationState(models.Model):
     class State(models.TextChoices):
         IDLE = 'idle', 'Idle'
+        WAITING_FOR_FULL_NAME = 'waiting_for_full_name', 'دریافت نام و نام خانوادگی'
+        WAITING_FOR_BARBER_PROFILE = 'waiting_for_barber_profile', 'مشاهده پروفایل آرایشگر'
         WAITING_FOR_FIRST_NAME = 'waiting_for_first_name', 'Waiting for first name'
         WAITING_FOR_LAST_NAME = 'waiting_for_last_name', 'Waiting for last name'
         WAITING_FOR_PHONE = 'waiting_for_phone', 'Waiting for phone'
@@ -70,7 +74,10 @@ class Barber(models.Model):
     first_name = models.CharField(max_length=100, verbose_name='نام')
     last_name = models.CharField(max_length=100, verbose_name='نام خانوادگی')
     description = models.TextField(blank=True, verbose_name='توضیح کوتاه')
-    image = models.FileField(upload_to='barbers/', blank=True, null=True, verbose_name='تصویر')
+    specialty = models.CharField(max_length=160, blank=True, verbose_name='تخصص‌ها')
+    experience_years = models.PositiveSmallIntegerField(default=0, verbose_name='سال‌های تجربه')
+    biography = models.TextField(blank=True, max_length=2000, verbose_name='معرفی و سوابق')
+    image = models.ImageField(upload_to='barbers/', blank=True, null=True, verbose_name='تصویر')
     is_active = models.BooleanField(default=True, verbose_name='فعال است؟')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='زمان ایجاد')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='زمان ویرایش')
@@ -82,6 +89,24 @@ class Barber(models.Model):
 
     def __str__(self):
         return f'{self.first_name} {self.last_name}'.strip()
+
+
+class BarberPortfolio(models.Model):
+    barber = models.ForeignKey(Barber, on_delete=models.CASCADE, related_name='portfolio', verbose_name='آرایشگر')
+    image = models.ImageField(upload_to='barbers/portfolio/', verbose_name='تصویر نمونه‌کار')
+    title = models.CharField(max_length=120, blank=True, verbose_name='عنوان نمونه‌کار')
+    caption = models.TextField(max_length=1000, blank=True, verbose_name='توضیحات')
+    position = models.PositiveSmallIntegerField(default=0, verbose_name='ترتیب نمایش')
+    is_active = models.BooleanField(default=True, verbose_name='نمایش در ربات')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['position', 'id']
+        verbose_name = 'نمونه‌کار'
+        verbose_name_plural = 'نمونه‌کارهای آرایشگران'
+
+    def __str__(self):
+        return self.title or f'نمونه‌کار {self.barber}'
 
 
 class BarberWorkingSchedule(models.Model):
@@ -120,10 +145,12 @@ class BarberWorkingSchedule(models.Model):
             models.UniqueConstraint(
                 fields=['barber', 'day_of_week'],
                 name='unique_barber_schedule_per_weekday',
+                violation_error_message='برای این آرایشگر در این روز قبلاً برنامه کاری ثبت شده است.',
             ),
             models.CheckConstraint(
                 condition=Q(start_time__lt=F('end_time')),
                 name='schedule_start_before_end',
+                violation_error_message='ساعت پایان کار باید بعد از ساعت شروع باشد.',
             ),
             models.CheckConstraint(
                 condition=(
@@ -131,6 +158,7 @@ class BarberWorkingSchedule(models.Model):
                     | Q(break_start_time__lt=F('break_end_time'))
                 ),
                 name='schedule_break_start_before_end',
+                violation_error_message='شروع و پایان استراحت را به ترتیب و با هم وارد کنید.',
             ),
         ]
         verbose_name = 'برنامه کاری آرایشگر'
@@ -143,19 +171,19 @@ class BarberWorkingSchedule(models.Model):
         errors = {}
 
         if self.start_time and self.end_time and self.start_time >= self.end_time:
-            errors['end_time'] = 'End time must be after start time.'
+            errors['end_time'] = 'ساعت پایان باید بعد از ساعت شروع باشد. ساعت را به صورت ۲۴ساعته وارد کنید.'
 
         has_break_start = self.break_start_time is not None
         has_break_end = self.break_end_time is not None
         if has_break_start != has_break_end:
-            errors['break_end_time'] = 'Set both break start and break end, or leave both empty.'
+            errors['break_end_time'] = 'شروع و پایان استراحت را با هم وارد کنید یا هر دو را خالی بگذارید.'
 
         if has_break_start and has_break_end:
             if self.break_start_time >= self.break_end_time:
-                errors['break_end_time'] = 'Break end time must be after break start time.'
+                errors['break_end_time'] = 'ساعت پایان استراحت باید بعد از ساعت شروع استراحت باشد.'
             if self.start_time and self.end_time:
                 if self.break_start_time < self.start_time or self.break_end_time > self.end_time:
-                    errors['break_start_time'] = 'Break time must be inside working hours.'
+                    errors['break_start_time'] = 'زمان استراحت باید داخل بازه ساعت کاری باشد.'
 
         if errors:
             raise ValidationError(errors)
@@ -201,6 +229,7 @@ class Appointment(models.Model):
                 fields=['barber', 'date', 'start_time'],
                 condition=Q(status='booked'),
                 name='unique_booked_appointment_slot',
+                violation_error_message='این ساعت برای آرایشگر انتخاب‌شده قبلاً رزرو شده است.',
             ),
         ]
         indexes = [
@@ -217,21 +246,45 @@ class Appointment(models.Model):
             self.Status.CANCELLED_BY_ADMIN,
         } and self.cancelled_at is None:
             self.cancelled_at = timezone.now()
-        self.full_clean()
-        return super().save(*args, **kwargs)
+        elif self.status == self.Status.BOOKED:
+            self.cancelled_at = None
+        if kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'cancelled_at'}
+        with transaction.atomic():
+            # Serialize manual and bot bookings against the same barber on databases
+            # with row locks. The unique slot constraint also protects exact duplicates.
+            if self.barber_id:
+                Barber.objects.select_for_update().filter(pk=self.barber_id).first()
+            self.full_clean()
+            return super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.barber} - {self.date} {self.start_time}'
 
     def clean(self):
-        if self._keeps_original_datetime():
-            return
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValidationError({'end_time': 'ساعت پایان نوبت باید بعد از ساعت شروع باشد.'})
 
-        if is_appointment_time_in_past(self.date, self.start_time):
+        if not self._keeps_original_datetime() and is_appointment_time_in_past(self.date, self.start_time):
             today = timezone.localdate()
             if self.date and self.date < today:
                 raise ValidationError({'date': 'امکان ثبت نوبت برای تاریخ گذشته وجود ندارد.'})
             raise ValidationError({'start_time': 'امکان ثبت نوبت برای ساعت گذشته امروز وجود ندارد.'})
+
+        if self.status == self.Status.BOOKED and self.barber_id and self.date and self.start_time:
+            schedule = BarberWorkingSchedule.objects.filter(
+                barber_id=self.barber_id, day_of_week=self.date.isoweekday(),
+            ).first()
+            duration = schedule.slot_duration_minutes if schedule else 30
+            start = datetime.combine(self.date, self.start_time)
+            end = appointment_end_datetime(self.date, self.start_time, self.end_time, duration)
+            others = Appointment.objects.filter(
+                barber_id=self.barber_id, date=self.date, status=self.Status.BOOKED,
+            ).exclude(pk=self.pk)
+            for other in others:
+                other_end = appointment_end_datetime(other.date, other.start_time, other.end_time, duration)
+                if start < other_end and end > datetime.combine(other.date, other.start_time):
+                    raise ValidationError({'start_time': 'این بازه با نوبت رزروشده دیگری برای این آرایشگر تداخل دارد.'})
 
     def _keeps_original_datetime(self):
         if not self.pk:
@@ -270,6 +323,7 @@ class BlockedTime(models.Model):
                     | Q(start_time__isnull=False, end_time__isnull=False, start_time__lt=F('end_time'))
                 ),
                 name='blocked_time_valid_range',
+                violation_error_message='برای بستن بخشی از روز، یک بازه ساعت معتبر وارد کنید.',
             ),
         ]
         verbose_name = 'زمان مسدود شده'
@@ -283,15 +337,17 @@ class BlockedTime(models.Model):
 
     def clean(self):
         if self.is_full_day:
+            self.start_time = None
+            self.end_time = None
             return
 
         errors = {}
         if self.start_time is None:
-            errors['start_time'] = 'Start time is required when this is not a full-day block.'
+            errors['start_time'] = 'برای بستن بخشی از روز، ساعت شروع را وارد کنید.'
         if self.end_time is None:
-            errors['end_time'] = 'End time is required when this is not a full-day block.'
+            errors['end_time'] = 'برای بستن بخشی از روز، ساعت پایان را وارد کنید.'
         if self.start_time and self.end_time and self.start_time >= self.end_time:
-            errors['end_time'] = 'End time must be after start time.'
+            errors['end_time'] = 'ساعت پایان باید بعد از ساعت شروع باشد. ساعت را به صورت ۲۴ساعته وارد کنید.'
 
         if errors:
             raise ValidationError(errors)
@@ -299,6 +355,9 @@ class BlockedTime(models.Model):
 
 class SalonSettings(models.Model):
     salon_name = models.CharField(max_length=150, verbose_name='نام آرایشگاه')
+    logo = models.ImageField(upload_to='salon/', blank=True, verbose_name='لوگوی آرایشگاه')
+    contact_intro = models.TextField(max_length=1000, blank=True, verbose_name='متن خوشامد ارتباط با ما')
+    social_url = models.URLField(blank=True, verbose_name='لینک شبکه اجتماعی')
     phone = models.CharField(max_length=30, blank=True, verbose_name='شماره تماس')
     address = models.TextField(blank=True, verbose_name='آدرس')
     working_hours_text = models.TextField(blank=True, verbose_name='ساعات کاری')

@@ -1,0 +1,18 @@
+{% extends 'panel/base.html' %}
+{% load panel_extras %}
+{% block content %}
+<div class="section-intro"><div><span class="eyebrow">حساب و دسترسی</span><h2>دستگاه‌های متصل به پنل</h2><p>{% if request.user.is_superuser %}نشست‌های مدیران را بررسی کنید و هر زمان لازم بود دسترسی یک دستگاه را ببندید.{% else %}نشست‌های فعال حساب خودتان را اینجا می‌بینید.{% endif %}</p></div><span class="soft-button">{{ sessions.paginator.count }} نشست</span></div>
+<div class="grid gap-4 lg:grid-cols-2">
+{% for item in sessions %}<article class="surface">
+    <div class="flex items-start justify-between gap-3"><div><h3 class="font-bold">{{ item.user.get_full_name|default:item.user.username }}</h3><p class="mt-2 break-all text-sm text-slate-500" dir="ltr">{{ item.user_agent|default:'اطلاعات دستگاه در دسترس نیست' }}</p></div><i data-lucide="monitor-smartphone" class="h-6 w-6 shrink-0 text-teal-700"></i></div>
+    <dl class="session-facts"><div><dt>نشانی IP</dt><dd dir="ltr">{{ item.ip_address|default:'ثبت نشده' }}</dd></div><div><dt>شروع ثبت فعالیت</dt><dd dir="ltr">{{ item.created_at|jalali_datetime }}</dd></div><div><dt>آخرین فعالیت</dt><dd>{{ item.last_seen|timesince }} پیش</dd></div><div><dt>انقضا</dt><dd dir="ltr">{{ item.session.expire_date|jalali_datetime }}</dd></div></dl>
+    <form method="post" action="{% url 'panel:session_revoke' item.pk %}" class="mt-4">{% csrf_token %}<button type="submit" class="soft-button text-rose-700">{% if item.session_id == current_session_key %}خروج از همین دستگاه{% else %}بستن نشست{% endif %}</button>{% if item.session_id == current_session_key %}<span class="mr-3 text-xs text-teal-700">● دستگاه فعلی شما</span>{% endif %}</form>
+</article>{% empty %}<div class="surface empty-state">نشست فعالی پیدا نشد. پس از ورود دوباره، اطلاعات دستگاه ثبت می‌شود.</div>{% endfor %}
+</div>
+{% include 'panel/includes/pagination.html' with page_obj=sessions %}
+{% if request.user.is_superuser %}
+<section class="mt-8"><div class="section-intro"><div><h2>گفتگوهای در جریان ربات</h2><p>مرحله فعلی مشتری‌هایی که در حال تکمیل مشخصات یا رزرو هستند.</p></div></div>
+<div class="surface overflow-x-auto"><table class="w-full text-sm"><thead><tr><th class="p-3 text-right">مشتری</th><th class="p-3 text-right">مرحله گفتگو</th><th class="p-3 text-right">آخرین تعامل</th></tr></thead><tbody>{% for item in conversations %}<tr><td class="p-3">{{ item.user }}</td><td class="p-3">{{ item.state|conversation_label }}</td><td class="p-3">{{ item.updated_at|timesince }} پیش</td></tr>{% empty %}<tr><td colspan="3" class="p-6 text-center text-slate-500">گفتگویی در جریان نیست.</td></tr>{% endfor %}</tbody></table></div>
+{% if conversations.has_previous %}<a class="soft-button mt-3" href="?bot_page={{ conversations.previous_page_number }}">گفتگوهای قبلی</a>{% endif %}{% if conversations.has_next %}<a class="soft-button mt-3" href="?bot_page={{ conversations.next_page_number }}">گفتگوهای بعدی</a>{% endif %}
+</section>{% endif %}
+{% endblock %}

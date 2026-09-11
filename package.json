@@ -1,0 +1,6 @@
+{
+  "name": "payizan-panel-assets",
+  "private": true,
+  "scripts": {"build:css": "tailwindcss -i panel/static/panel/tailwind.input.css -o panel/static/panel/utilities.css --minify"},
+  "devDependencies": {"tailwindcss": "3.4.17", "lucide": "0.468.0"}
+}

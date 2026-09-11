@@ -7,6 +7,18 @@ register = template.Library()
 
 
 @register.filter
+def conversation_label(value):
+    return {
+        'idle': 'منوی اصلی', 'waiting_for_full_name': 'ثبت نام کامل',
+        'waiting_for_first_name': 'ثبت نام', 'waiting_for_last_name': 'ثبت نام خانوادگی',
+        'waiting_for_phone': 'ثبت موبایل', 'waiting_for_barber': 'انتخاب آرایشگر',
+        'waiting_for_barber_profile': 'مشاهده پروفایل آرایشگر', 'waiting_for_date': 'انتخاب روز',
+        'waiting_for_time': 'انتخاب ساعت', 'waiting_for_confirmation': 'تأیید رزرو',
+        'waiting_for_cancel_appointment': 'مشاهده نوبت‌ها', 'waiting_for_cancel_confirmation': 'تأیید لغو نوبت',
+    }.get(value, 'در حال گفتگو')
+
+
+@register.filter
 def jalali_date(value):
     return gregorian_to_jalali(value)
 

@@ -6,12 +6,15 @@
         {% else %}
             <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-slate-700">{{ field.label }}</label>
             {{ field }}
+            {% if field.field.widget.input_type == 'file' and field.value.url %}<img src="{{ field.value.url }}" alt="{{ field.label }} فعلی" class="image-preview" loading="lazy">{% endif %}
         {% endif %}
         {% if field.help_text %}
-            <p class="text-xs text-slate-500">{{ field.help_text }}</p>
+            <p id="{{ field.auto_id }}_helptext" class="text-xs text-slate-500">{{ field.help_text }}</p>
         {% endif %}
-        {% for error in field.errors %}
-            <p class="text-xs text-rose-700">{{ error }}</p>
-        {% endfor %}
+        {% if field.errors %}
+            <div id="{{ field.auto_id }}_error" role="alert" class="text-xs text-rose-700">
+                {% for error in field.errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+        {% endif %}
     </div>
 {% endfor %}

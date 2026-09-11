@@ -1,11 +1,10 @@
-import re
-
 from django.db.models import Q
 from django.utils import timezone
 
 from appointments.models import Appointment, BotConversationState
 from appointments.utils.date_utils import gregorian_to_jalali
 from bale_bot.menu import MAIN_MENU_KEYBOARD
+from bale_bot.utils import positive_id, selection_id
 
 
 CANCEL_APPOINTMENT_PREFIX = 'لغو نوبت'
@@ -23,7 +22,7 @@ def show_my_appointments(client, chat_id, user):
         state.reset()
         return client.send_reply_keyboard(
             chat_id=chat_id,
-            text='شما نوبت آینده‌ای ندارید.',
+            text='🗓 هنوز نوبت آینده‌ای نداری. دوست داری برای یک حال‌وهوای تازه وقت بگیری؟ روی «رزرو نوبت» بزن. ✂️',
             keyboard=MAIN_MENU_KEYBOARD,
             resize_keyboard=True,
         )
@@ -47,7 +46,7 @@ def handle_my_appointments_state(client, chat_id, user, text):
         state.reset()
         return client.send_reply_keyboard(
             chat_id=chat_id,
-            text='به منوی اصلی برگشتید.',
+            text='🌿 دوباره در منوی اصلی هستیم. دوست داری چه کاری انجام دهی؟',
             keyboard=MAIN_MENU_KEYBOARD,
             resize_keyboard=True,
         )
@@ -58,17 +57,17 @@ def handle_my_appointments_state(client, chat_id, user, text):
     if state.state == BotConversationState.State.WAITING_FOR_CANCEL_CONFIRMATION:
         return handle_cancel_confirmation(client, chat_id, user, state, text)
 
-    return client.send_message(chat_id=chat_id, text='مرحله نوبت‌های من مشخص نیست. لطفا /start را بفرستید.')
+    return client.send_message(chat_id=chat_id, text='🌿 بیا فهرست نوبت‌ها را تازه کنیم؛ /start را بفرست و «نوبت‌های من» را انتخاب کن.')
 
 
 def ask_cancel_confirmation(client, chat_id, user, state, text):
     appointment_id = parse_cancel_appointment_id(text)
     if appointment_id is None:
-        return client.send_message(chat_id=chat_id, text='لطفا یکی از دکمه‌های لغو نوبت را انتخاب کنید.')
+        return client.send_message(chat_id=chat_id, text='🗓 اگر قصد لغو داری، دکمه همان نوبت را انتخاب کن؛ پیش از لغو از تو تأیید می‌گیرم.')
 
     appointment = get_cancellable_appointment(user, appointment_id)
     if appointment is None:
-        return client.send_message(chat_id=chat_id, text='این نوبت برای لغو پیدا نشد یا دیگر قابل لغو نیست.')
+        return client.send_message(chat_id=chat_id, text='🌿 این نوبت دیگر قابل لغو نیست. برای هماهنگی بیشتر از «ارتباط با ما» با سالن تماس بگیر.')
 
     state.state = BotConversationState.State.WAITING_FOR_CANCEL_CONFIRMATION
     state.data = {
@@ -78,7 +77,7 @@ def ask_cancel_confirmation(client, chat_id, user, state, text):
     state.save(update_fields=['state', 'data', 'updated_at'])
 
     text = (
-        'آیا مطمئن هستید؟\n'
+        '🗓 این نوبت لغو شود؟\n\n'
         f'آرایشگر: {appointment.barber}\n'
         f'تاریخ: {gregorian_to_jalali(appointment.date)}\n'
         f'ساعت: {appointment.start_time.strftime("%H:%M")}'
@@ -94,20 +93,20 @@ def handle_cancel_confirmation(client, chat_id, user, state, text):
         state.reset()
         return client.send_reply_keyboard(
             chat_id=chat_id,
-            text='لغو نوبت انجام نشد.',
+            text='🌿 نوبتت سر جای خودش است؛ منتظر دیدارت هستیم!',
             keyboard=MAIN_MENU_KEYBOARD,
             resize_keyboard=True,
         )
 
     if text != CANCEL_APPOINTMENT_YES:
-        return client.send_message(chat_id=chat_id, text='لطفا یکی از گزینه‌های بله یا خیر را انتخاب کنید.')
+        return client.send_message(chat_id=chat_id, text='🌿 برای ادامه، «بله، لغو شود» یا «خیر» را انتخاب کن.',)
 
     appointment = get_cancellable_appointment(user, state.data.get('appointment_id'))
     if appointment is None:
         state.reset()
         return client.send_reply_keyboard(
             chat_id=chat_id,
-            text='این نوبت دیگر قابل لغو نیست.',
+            text='🌿 این نوبت دیگر قابل لغو نیست؛ برای هماهنگی با سالن تماس بگیر.',
             keyboard=MAIN_MENU_KEYBOARD,
             resize_keyboard=True,
         )
@@ -119,7 +118,7 @@ def handle_cancel_confirmation(client, chat_id, user, state, text):
 
     return client.send_reply_keyboard(
         chat_id=chat_id,
-        text='نوبت شما لغو شد.',
+        text='✅ نوبتت لغو شد. هر وقت آماده بودی، خوشحال می‌شویم دوباره برایت وقت بگذاریم. 🌿',
         keyboard=MAIN_MENU_KEYBOARD,
         resize_keyboard=True,
     )
@@ -138,6 +137,7 @@ def get_future_appointments(user):
 
 
 def get_cancellable_appointment(user, appointment_id):
+    appointment_id = positive_id(appointment_id)
     if not appointment_id:
         return None
 
@@ -148,7 +148,7 @@ def get_cancellable_appointment(user, appointment_id):
 
 
 def format_appointments_list(appointments):
-    lines = ['نوبت‌های آینده شما:']
+    lines = ['🗓 نوبت‌های آینده شما:', 'برای دیدارت برنامه داریم! ✂️']
 
     for index, appointment in enumerate(appointments, start=1):
         lines.extend(
@@ -162,7 +162,7 @@ def format_appointments_list(appointments):
         )
 
     lines.append('')
-    lines.append('برای لغو، دکمه نوبت مورد نظر را انتخاب کنید.')
+    lines.append('اگر برنامه‌ات تغییر کرده، با دکمه زیر هر نوبت می‌توانی درخواست لغو بدهی. 🌿')
     return '\n'.join(lines)
 
 
@@ -181,10 +181,7 @@ def format_cancel_button(appointment):
 
 
 def parse_cancel_appointment_id(text):
-    match = re.search(r'#(\d+)\s*$', text or '')
-    if not match:
-        return None
-    return int(match.group(1))
+    return selection_id(text)
 
 
 def get_user_state(user):

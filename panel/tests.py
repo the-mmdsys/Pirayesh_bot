@@ -10,20 +10,20 @@ from appointments.utils.date_utils import gregorian_to_jalali
 
 
 class PanelAccessTests(TestCase):
-    def test_anonymous_user_is_redirected_to_admin_login(self):
+    def test_anonymous_user_is_redirected_to_panel_login(self):
         response = self.client.get(reverse('panel:dashboard'))
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn('/admin/login/', response['Location'])
+        self.assertIn('/panel/login/', response['Location'])
 
-    def test_non_staff_user_is_redirected_to_admin_login(self):
+    def test_non_staff_user_is_redirected_to_panel_login(self):
         user = User.objects.create_user(username='normal', password='pass12345')
         self.client.force_login(user)
 
         response = self.client.get(reverse('panel:dashboard'))
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn('/admin/login/', response['Location'])
+        self.assertIn('/panel/login/', response['Location'])
 
     def test_staff_user_can_see_dashboard(self):
         user = User.objects.create_user(username='staff', password='pass12345', is_staff=True)

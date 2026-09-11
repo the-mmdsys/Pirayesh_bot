@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" viewBox="0 0 1000 700">
+<rect width="1000" height="700" fill="#203e35"/><rect x="32" y="32" width="936" height="636" rx="28" fill="none" stroke="#d6b888" stroke-opacity=".38"/>
+<circle cx="500" cy="210" r="87" fill="#d6b888"/>
+<g transform="translate(444 147) scale(1.85)" fill="none" stroke="#203e35" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="19" cy="45" r="7"/><circle cx="42" cy="45" r="7"/><path d="m24 39 20-27M37 39 16 12M27 21c-1-8 4-12 11-13-1 7-4 11-11 13Z"/></g>
+<text x="500" y="416" font-family="Vazirmatn,Tahoma,sans-serif" font-size="100" font-weight="800" text-anchor="middle" fill="#f6f0e1">پاییزان</text>
+<text x="500" y="486" font-family="Vazirmatn,Tahoma,sans-serif" font-size="34" text-anchor="middle" fill="#d6b888">پیرایش تخصصی</text>
+<path d="M390 535h220" stroke="#d6b888" stroke-opacity=".5"/>
+<text x="500" y="587" font-family="Vazirmatn,Tahoma,sans-serif" font-size="22" text-anchor="middle" fill="#c3d0c5">فرصتی برای یک حال خوب</text>
+</svg>

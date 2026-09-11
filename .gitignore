@@ -14,3 +14,9 @@ logs/
 
 .idea/
 .vscode/
+
+.artifacts/
+.coverage
+htmlcov/
+.maintenance/
+node_modules/

@@ -6,6 +6,7 @@ from .forms import AppointmentAdminForm, BlockedTimeAdminForm
 from .models import (
     Appointment,
     Barber,
+    BarberPortfolio,
     BarberWorkingSchedule,
     BlockedTime,
     BotConversationState,
@@ -91,6 +92,12 @@ class BarberAdmin(admin.ModelAdmin):
     @admin.action(description='غیرفعال کردن آرایشگرهای انتخاب شده')
     def deactivate_barbers(self, request, queryset):
         queryset.update(is_active=False)
+
+
+@admin.register(BarberPortfolio)
+class BarberPortfolioAdmin(admin.ModelAdmin):
+    list_display = ['barber', 'title', 'position', 'is_active']
+    list_filter = ['barber', 'is_active']
 
 
 @admin.register(BarberWorkingSchedule)

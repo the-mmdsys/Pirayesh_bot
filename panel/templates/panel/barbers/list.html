@@ -2,6 +2,7 @@
 
 {% block content %}
 <div class="space-y-5">
+    <div class="section-intro"><div><span class="eyebrow">هنر دست تیم شما</span><h2>آشنایی قبل از اولین نوبت</h2><p>تصویر، تخصص‌ها، سابقه و نمونه‌کارهای هر آرایشگر را برای مشتری‌ها آماده کنید.</p></div></div>
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <form method="get" class="flex min-w-0 gap-2">
             <input type="search" name="q" value="{{ query }}" placeholder="جستجوی نام آرایشگر" class="min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100">
@@ -29,13 +30,15 @@
                     </div>
                     <div class="min-w-0 flex-1">
                         <h2 class="font-bold text-slate-950">{{ barber }}</h2>
-                        <p class="mt-1 line-clamp-2 text-sm text-slate-500">{{ barber.description|default:'توضیحی ثبت نشده است.' }}</p>
+                        <p class="mt-1 line-clamp-2 text-sm text-slate-500">{{ barber.specialty|default:barber.description|default:'معرفی این آرایشگر را کامل کنید.' }}</p>
+                        {% if barber.experience_years %}<p class="mt-2 text-xs text-teal-700">{{ barber.experience_years }} سال تجربه</p>{% endif %}
                     </div>
                     <span class="rounded-md px-2 py-1 text-xs font-semibold {% if barber.is_active %}bg-teal-50 text-teal-800 ring-1 ring-teal-200{% else %}bg-slate-100 text-slate-600 ring-1 ring-slate-200{% endif %}">
                         {% if barber.is_active %}فعال{% else %}غیرفعال{% endif %}
                     </span>
                 </div>
                 <div class="mt-4 flex flex-wrap gap-2">
+                    <a href="{% url 'panel:barber_portfolio' barber.pk %}" class="soft-button">نمونه‌کارها · {{ barber.portfolio_count }}</a>
                     <a href="{% url 'panel:barber_edit' barber.pk %}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
                         <i data-lucide="pencil" class="h-4 w-4"></i>
                         ویرایش

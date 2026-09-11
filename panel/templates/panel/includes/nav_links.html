@@ -7,4 +7,7 @@
 <a href="{% url 'panel:blocked_times' %}" class="block rounded-md px-3 py-2 {% if current == 'blocked_times' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">زمان‌های مسدودشده</a>
 <a href="{% url 'panel:users' %}" class="block rounded-md px-3 py-2 {% if current == 'users' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">کاربران</a>
 <a href="{% url 'panel:salon_settings' %}" class="block rounded-md px-3 py-2 {% if current == 'salon_settings' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">تنظیمات آرایشگاه</a>
+<a href="{% url 'panel:sessions' %}" class="block rounded-md px-3 py-2 {% if current == 'sessions' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">نشست‌ها</a>
+{% if request.user.is_superuser %}<a href="{% url 'panel:bot_control' %}" class="block rounded-md px-3 py-2 {% if current == 'bot_control' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">مدیریت ربات</a>{% endif %}
+{% if request.user.is_superuser %}<a href="{% url 'panel:recovery_email' %}" class="block rounded-md px-3 py-2 {% if current == 'recovery_email' %}bg-teal-700 text-white{% else %}text-slate-700 hover:bg-slate-100{% endif %}">ایمیل بازیابی حساب</a>{% endif %}
 {% endwith %}

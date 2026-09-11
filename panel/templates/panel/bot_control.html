@@ -1,0 +1,23 @@
+{% extends 'panel/base.html' %}
+{% load panel_extras %}
+{% block content %}
+<div class="section-intro"><div><span class="eyebrow">همراه مشتری‌های شما</span><h2>ربات پاییزان، زیر نظر شما</h2><p>پذیرش درخواست‌ها، پیام توقف و نگهداری ربات را از همین‌جا مدیریت کنید.</p></div></div>
+<div class="grid items-start gap-6 xl:grid-cols-2">
+    <section class="surface space-y-5"><div class="flex items-center justify-between"><h2 class="text-lg font-bold">وضعیت پاسخ‌گویی</h2><span class="status-pill {% if control.is_enabled %}online{% endif %}">{% if control.is_enabled %}● روشن{% else %}○ خاموش{% endif %}</span></div>
+        <p class="text-sm text-slate-500">در حالت خاموش، درخواست رزرو پردازش نمی‌شود و کاربر پیام توقف موقت را می‌بیند. با روشن کردن، گفتگو از همان مرحله قابل ادامه است.</p>
+        <p class="text-xs text-slate-500">آخرین ارتباط موفق با بله: {% if control.last_seen_at %}{{ control.last_seen_at|timesince }} پیش{% else %}هنوز ثبت نشده؛ سرویس ربات باید در حال اجرا باشد.{% endif %}</p>
+        <form method="post" action="{% url 'panel:bot_toggle' %}">{% csrf_token %}<input type="hidden" name="state" value="{% if control.is_enabled %}off{% else %}on{% endif %}"><button type="submit" class="{% if control.is_enabled %}soft-button{% else %}primary-button{% endif %}">{% if control.is_enabled %}خاموش کردن موقت{% else %}روشن کردن ربات{% endif %}</button></form>
+        <hr class="border-slate-100">
+        <form method="post" novalidate class="space-y-4">{% csrf_token %}{% include 'panel/includes/form_fields.html' %}<button type="submit" class="soft-button">ذخیره پیام توقف</button></form>
+    </section>
+    <section class="surface space-y-5"><div class="flex items-center gap-3"><i data-lucide="refresh-cw" class="h-6 w-6 text-teal-700"></i><h2 class="text-lg font-bold">نگهداری و به‌روزرسانی</h2></div>
+        <p class="text-sm text-slate-500">نشست‌ها و کدهای منقضی پاک می‌شوند و پایگاه داده بررسی می‌شود. نوبت‌ها و اطلاعات مشتری‌ها حفظ می‌شوند.</p>
+        <form method="post" action="{% url 'panel:bot_maintain' %}">{% csrf_token %}<input type="hidden" name="action" value="optimize"><button type="submit" class="primary-button" {% if active_job %}disabled{% endif %}>اجرای نگهداری ربات</button></form>
+        <hr class="border-slate-100"><h3 class="font-bold">به‌روزرسانی پکیج‌ها</h3><p class="text-sm text-slate-500">نسخه‌های سازگار نصب و بررسی می‌شوند. پس از پایان، پنل و ربات را دوباره اجرا کنید تا نسخه‌های تازه بارگذاری شوند. به‌روزرسانی پکیج‌ها به‌تنهایی تضمین افزایش سرعت نیست.</p>
+        <form method="post" action="{% url 'panel:bot_maintain' %}">{% csrf_token %}<input type="hidden" name="action" value="upgrade"><button type="submit" class="soft-button" {% if active_job or not can_upgrade %}disabled{% endif %}>نگهداری و به‌روزرسانی پکیج‌ها</button></form>
+        {% if not can_upgrade %}<p class="text-xs text-amber-800">این گزینه به اجرای پروژه در محیط مجازی و فعال بودن به‌روزرسانی روی سرور نیاز دارد.</p>{% endif %}
+        {% if active_job %}<div class="rounded-md bg-teal-50 p-4 text-sm text-teal-800" role="status" data-maintenance-poll="{% url 'panel:maintenance_status' %}">عملیات در حال اجراست؛ نتیجه خودکار نمایش داده می‌شود…</div>{% endif %}
+    </section>
+</div>
+<section class="mt-8"><h2 class="mb-4 text-lg font-bold">تاریخچه عملیات</h2><div class="space-y-3">{% for job in jobs %}<article class="surface"><div class="flex flex-wrap items-center justify-between gap-3"><h3 class="font-bold">{% if job.upgrade_packages %}نگهداری و به‌روزرسانی{% else %}نگهداری ربات{% endif %}</h3><span class="status-pill {% if job.status == 'succeeded' %}online{% endif %}">{{ job.get_status_display }}</span></div><p class="mt-3 text-sm text-slate-600">{{ job.summary|default:'در انتظار شروع عملیات…' }}</p><p class="mt-3 text-xs text-slate-500"><span dir="ltr">{{ job.created_at|jalali_datetime }}</span> · {{ job.requested_by.username|default:'مدیر' }}{% if job.restart_required %} · نیاز به اجرای مجدد سرویس{% endif %}</p></article>{% empty %}<div class="surface empty-state"><p>هنوز عملیاتی اجرا نشده است.</p></div>{% endfor %}</div></section>
+{% endblock %}

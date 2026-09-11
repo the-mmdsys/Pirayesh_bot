@@ -1,0 +1,21 @@
+{% extends 'panel/base.html' %}
+
+{% block content %}
+<div class="auth-layout">
+<section class="auth-story"><span class="eyebrow">پیرایش تخصصی پاییزان</span><h2>یک روز مرتب،<br>یک حال خوب.</h2><p>نوبت‌ها، آرایشگرها و ارتباط با مشتری‌ها؛ همه در یک فضای ساده و آرام.</p><div class="auth-leaf" aria-hidden="true">🍂</div></section>
+<form method="post" novalidate class="auth-card space-y-5">
+    {% csrf_token %}
+    <div>
+        <h2 class="text-lg font-bold">ورود به پنل آرایشگاه</h2>
+        <p class="mt-2 text-sm text-slate-500">با حساب مدیریت خود وارد شوید.</p>
+    </div>
+    {% if form.non_field_errors %}
+        <div role="alert" class="rounded-md bg-rose-50 p-3 text-sm text-rose-800">{{ form.non_field_errors }}</div>
+    {% endif %}
+    {% include 'panel/includes/form_fields.html' %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit" class="w-full rounded-md bg-teal-700 px-4 py-3 font-semibold text-white hover:bg-teal-800">ورود</button>
+    <a href="{% url 'panel:password_reset' %}" class="block text-center text-sm text-teal-700">رمز عبور را فراموش کرده‌اید؟</a>
+</form>
+</div>
+{% endblock %}

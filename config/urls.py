@@ -14,7 +14,6 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import include, path
@@ -23,7 +22,6 @@ from bale_bot.webhook_views import webhook as bale_webhook
 
 urlpatterns = [
     path('health/', health_check, name='health_check'),
-    path('admin/', admin.site.urls),
     path('panel/', include('panel.urls')),
     path('bale/webhook/', bale_webhook, name='bale_webhook'),
 ]

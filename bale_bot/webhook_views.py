@@ -5,6 +5,8 @@ import os
 from django.http import HttpResponseForbidden, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django.utils import timezone
+from panel.models import BotControl
 
 from bale_bot.client import BaleBotClient
 from bale_bot.handlers import handle_update
@@ -34,6 +36,8 @@ def webhook(request):
 
     try:
         handle_update(update, BaleBotClient.from_env())
+        BotControl.current()
+        BotControl.objects.filter(pk=1).update(last_seen_at=timezone.now(), transport='webhook')
     except Exception:
         logger.exception('Bale webhook processing failed.')
         return JsonResponse({'status': 'error'}, status=500)

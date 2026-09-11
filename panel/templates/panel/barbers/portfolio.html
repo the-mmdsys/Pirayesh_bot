@@ -1,0 +1,18 @@
+{% extends 'panel/base.html' %}
+{% block content %}
+<div class="section-intro"><div><span class="eyebrow">گالری اختصاصی</span><h2>{{ barber }}</h2><p>نمونه‌کارها با دکمه شیشه‌ای زیر پروفایل این آرایشگر در ربات نمایش داده می‌شوند.</p></div><a class="soft-button" href="{% url 'panel:barber_edit' barber.pk %}">ویرایش پروفایل</a></div>
+<div class="grid items-start gap-6 xl:grid-cols-3">
+    <form method="post" enctype="multipart/form-data" novalidate class="surface space-y-4">
+        {% csrf_token %}<h2 class="text-lg font-bold">افزودن نمونه‌کار</h2>
+        {% if form.non_field_errors %}<div role="alert" class="text-rose-700">{{ form.non_field_errors }}</div>{% endif %}
+        {% include 'panel/includes/form_fields.html' %}
+        <button type="submit" class="primary-button w-full">آپلود و ذخیره نمونه‌کار</button>
+    </form>
+    <div class="grid gap-4 sm:grid-cols-2 xl:col-span-2">
+        {% for work in works %}<article class="portfolio-card">
+            <img src="{{ work.image.url }}" alt="{{ work.title|default:'نمونه‌کار آرایشگر' }}" loading="lazy">
+            <div class="p-4"><div class="flex items-center justify-between gap-3"><h3 class="font-bold">{{ work.title|default:'نمونه‌کار' }}</h3><span class="text-xs text-slate-500">ترتیب {{ work.position }}</span></div><p class="mt-2 text-sm text-slate-500">{{ work.caption|truncatechars:150 }}</p><p class="mt-2 text-xs {% if work.is_active %}text-teal-700{% else %}text-slate-500{% endif %}">{% if work.is_active %}● نمایش در ربات{% else %}○ پنهان از کاربران{% endif %}</p><div class="mt-4 flex gap-2"><a class="soft-button" href="{% url 'panel:portfolio_edit' barber.pk work.pk %}">ویرایش</a><a class="soft-button text-rose-700" href="{% url 'panel:portfolio_delete' barber.pk work.pk %}">حذف</a></div></div>
+        </article>{% empty %}<div class="surface empty-state sm:col-span-2"><span aria-hidden="true">📸</span><h3>اولین نمونه‌کار را اضافه کنید</h3><p>به مشتری‌ها کمک کنید سبک دلخواهشان را پیدا کنند.</p></div>{% endfor %}
+    </div>
+</div>
+{% endblock %}

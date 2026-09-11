@@ -1,24 +1,29 @@
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
-from django.db.models import Q
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from appointments.models import (
     Appointment,
     Barber,
+    BarberPortfolio,
     BarberWorkingSchedule,
     BlockedTime,
     BotUser,
     SalonSettings,
 )
 from appointments.utils.date_utils import gregorian_to_jalali
+from .auth import staff_member_required
 from .forms import (
     AppointmentPanelForm,
     BarberPanelForm,
+    BarberPortfolioForm,
     BarberWorkingSchedulePanelForm,
     BlockedTimePanelForm,
     SalonSettingsPanelForm,
+    ScheduleCreateForm,
 )
 
 
@@ -27,7 +32,7 @@ def dashboard(request):
     today = timezone.localdate()
     current_time = timezone.localtime().time()
     today_appointments = appointments_base_queryset().filter(date=today)
-    upcoming_appointments = appointments_base_queryset().filter(
+    upcoming_appointments = appointments_base_queryset().filter(status=Appointment.Status.BOOKED).filter(
         Q(date__gt=today) | Q(date=today, start_time__gte=current_time)
     )
 
@@ -65,10 +70,15 @@ def appointments_list(request):
     if status:
         appointments = appointments.filter(status=status)
     if barber_id:
-        appointments = appointments.filter(barber_id=barber_id)
+        if barber_id.isdecimal() and len(barber_id) <= 19 and 0 < int(barber_id) <= 9223372036854775807:
+            appointments = appointments.filter(barber_id=int(barber_id))
+        else:
+            appointments = appointments.none()
+            messages.error(request, 'آرایشگر انتخاب‌شده معتبر نیست.')
     if query:
         appointments = appointments.filter(
-            Q(user__first_name__icontains=query)
+            Q(user__full_name__icontains=query)
+            | Q(user__first_name__icontains=query)
             | Q(user__last_name__icontains=query)
             | Q(user__phone__icontains=query)
             | Q(barber__first_name__icontains=query)
@@ -115,10 +125,13 @@ def appointment_edit(request, pk):
 def appointment_cancel(request, pk):
     appointment = get_object_or_404(Appointment, pk=pk)
     if request.method == 'POST':
-        appointment.status = Appointment.Status.CANCELLED_BY_ADMIN
-        appointment.cancelled_at = timezone.now()
-        appointment.save()
-        messages.success(request, 'نوبت توسط ادمین لغو شد.')
+        if appointment.status == Appointment.Status.BOOKED:
+            appointment.status = Appointment.Status.CANCELLED_BY_ADMIN
+            appointment.cancelled_at = timezone.now()
+            appointment.save()
+            messages.success(request, 'نوبت توسط ادمین لغو شد.')
+        else:
+            messages.info(request, 'این نوبت در وضعیت رزرو نیست و نیازی به لغو ندارد.')
         return redirect('panel:appointments')
 
     return render(
@@ -135,7 +148,7 @@ def appointment_cancel(request, pk):
 @staff_member_required
 def barbers_list(request):
     query = request.GET.get('q', '').strip()
-    barbers = Barber.objects.order_by('first_name', 'last_name')
+    barbers = Barber.objects.annotate(portfolio_count=Count('portfolio')).order_by('first_name', 'last_name')
     if query:
         barbers = barbers.filter(Q(first_name__icontains=query) | Q(last_name__icontains=query))
 
@@ -181,8 +194,47 @@ def barber_toggle(request, pk):
 
 
 @staff_member_required
+def barber_portfolio(request, pk):
+    barber = get_object_or_404(Barber, pk=pk)
+    instance = BarberPortfolio(barber=barber)
+    form = BarberPortfolioForm(request.POST if request.method == 'POST' else None, request.FILES or None, instance=instance)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'نمونه‌کار اضافه شد و در گالری آرایشگر قابل مشاهده است.')
+        return redirect('panel:barber_portfolio', pk=pk)
+    return render(request, 'panel/barbers/portfolio.html', {
+        'title': f'نمونه‌کارهای {barber}', 'barber': barber, 'form': form, 'works': barber.portfolio.all(),
+    })
+
+
+@staff_member_required
+def portfolio_edit(request, pk, work_pk):
+    work = get_object_or_404(BarberPortfolio, pk=work_pk, barber_id=pk)
+    form = BarberPortfolioForm(request.POST if request.method == 'POST' else None, request.FILES or None, instance=work)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'نمونه‌کار به‌روز شد.')
+        return redirect('panel:barber_portfolio', pk=pk)
+    return render(request, 'panel/barbers/portfolio_edit.html', {'title': 'ویرایش نمونه‌کار', 'form': form, 'barber': work.barber})
+
+
+@staff_member_required
+def portfolio_delete(request, pk, work_pk):
+    work = get_object_or_404(BarberPortfolio, pk=work_pk, barber_id=pk)
+    if request.method == 'POST':
+        work.delete()
+        messages.success(request, 'نمونه‌کار از گالری حذف شد.')
+        return redirect('panel:barber_portfolio', pk=pk)
+    return render(request, 'panel/barbers/portfolio_delete.html', {'title': 'حذف نمونه‌کار', 'work': work})
+
+
+@staff_member_required
 def schedules_list(request):
-    schedules = BarberWorkingSchedule.objects.select_related('barber').order_by('barber', 'day_of_week')
+    week_order = Case(
+        *[When(day_of_week=day, then=Value(index)) for index, day in enumerate((6, 7, 1, 2, 3, 4, 5))],
+        output_field=IntegerField(),
+    )
+    schedules = BarberWorkingSchedule.objects.select_related('barber').order_by('barber', week_order)
     return render(request, 'panel/schedules/list.html', {'title': 'برنامه کاری', 'schedules': schedules})
 
 
@@ -190,7 +242,7 @@ def schedules_list(request):
 def schedule_create(request):
     return save_form_view(
         request=request,
-        form_class=BarberWorkingSchedulePanelForm,
+        form_class=ScheduleCreateForm,
         template_name='panel/form.html',
         success_url_name='panel:schedules',
         title='افزودن برنامه کاری',
@@ -280,11 +332,12 @@ def users_list(request):
     users = BotUser.objects.order_by('-created_at')
     if query:
         filters = (
-            Q(first_name__icontains=query)
+            Q(full_name__icontains=query)
+            | Q(first_name__icontains=query)
             | Q(last_name__icontains=query)
             | Q(phone__icontains=query)
         )
-        if query.isdigit():
+        if query.isdecimal() and len(query) <= 19 and int(query) <= 9223372036854775807:
             filters |= Q(bale_user_id=int(query))
         users = users.filter(filters)
 
@@ -302,6 +355,7 @@ def salon_settings(request):
         title='تنظیمات آرایشگاه',
         success_message='تنظیمات آرایشگاه ذخیره شد.',
         instance=settings,
+        has_file=True,
     )
 
 
@@ -325,13 +379,24 @@ def save_form_view(
             form_kwargs['files'] = request.FILES
         form = form_class(**form_kwargs)
         if form.is_valid():
-            form.save()
-            messages.success(request, success_message)
-            return redirect(success_url_name)
+            try:
+                with transaction.atomic():
+                    form.save()
+            except ValidationError as error:
+                if hasattr(error, 'message_dict'):
+                    for field, errors in error.message_dict.items():
+                        form.add_error(field if field in form.fields else None, errors)
+                else:
+                    form.add_error(None, error)
+            except IntegrityError:
+                form.add_error(None, 'اطلاعات با رکورد دیگری تداخل دارد. صفحه را تازه کنید و دوباره تلاش کنید.')
+            else:
+                messages.success(request, success_message)
+                return redirect(success_url_name)
     else:
         form = form_class(instance=instance)
 
-    return render(request, template_name, {'title': title, 'form': form})
+    return render(request, template_name, {'title': title, 'form': form, 'cancel_url': success_url_name})
 
 
 def delete_view(request, obj, title, message, success_url_name, success_message):
